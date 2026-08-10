@@ -2,6 +2,7 @@ import random
 import sys
 
 import matplotlib
+
 matplotlib.use("Agg")  # Headless backend: only save to file, never open a window
 import matplotlib.pyplot as plt
 
@@ -135,12 +136,19 @@ def select_user():
             f" {STYLE_MENU_NUM}{create_choice_number}{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} "
             f"{STYLE_MENU}Create new user{STYLE_RESET}"
         )
+        delete_choice_number = len(user_ids) + 2
+        print(
+            f" {STYLE_MENU_NUM}{delete_choice_number}{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} "
+            f"{STYLE_MENU}Delete a user{STYLE_RESET}"
+        )
 
         choice = colored_input("\nEnter choice: ").strip()
         try:
             choice_index = int(choice) - 1
         except ValueError:
-            print(f"\n{STYLE_ERROR_BG} Error: Please enter a valid number! {STYLE_RESET}")
+            print(
+                f"\n{STYLE_ERROR_BG} Error: Please enter a valid number! {STYLE_RESET}"
+            )
             continue
 
         if choice_index == len(user_ids):
@@ -148,11 +156,48 @@ def select_user():
             new_user_id = storage.create_user(new_name)
             return new_user_id, new_name
 
+        if choice_index == len(user_ids) + 1:
+            delete_a_user(users, user_ids)
+            continue
+
         if 0 <= choice_index < len(user_ids):
             selected_id = user_ids[choice_index]
             return selected_id, users[selected_id]
 
         print(f"\n{STYLE_ERROR_BG} Error: Invalid choice! {STYLE_RESET}")
+
+
+def delete_a_user(users, user_ids):
+    """Asks which user (by number) to delete, confirms, then deletes them."""
+    if not user_ids:
+        print(f"\n{STYLE_ERROR_BG} Error: There are no users to delete! {STYLE_RESET}")
+        return
+
+    choice = colored_input("Enter the number of the user to delete: ").strip()
+    try:
+        choice_index = int(choice) - 1
+    except ValueError:
+        print(f"\n{STYLE_ERROR_BG} Error: Please enter a valid number! {STYLE_RESET}")
+        return
+
+    if not (0 <= choice_index < len(user_ids)):
+        print(f"\n{STYLE_ERROR_BG} Error: Invalid choice! {STYLE_RESET}")
+        return
+
+    user_id_to_delete = user_ids[choice_index]
+    user_name_to_delete = users[user_id_to_delete]
+
+    confirmed = get_yes_no_input(
+        f"Are you sure you want to delete '{user_name_to_delete}' and all "
+        f"their movies? (Y/N): "
+    )
+    if confirmed:
+        storage.delete_user(user_id_to_delete)
+        print(
+            f"\n{STYLE_SUCCESS_BG} User '{user_name_to_delete}' deleted. {STYLE_RESET}"
+        )
+    else:
+        print(f"\n{STYLE_DIM}Cancelled.{STYLE_RESET}")
 
 
 def print_menu(user_name):

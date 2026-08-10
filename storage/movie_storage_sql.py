@@ -9,26 +9,66 @@ engine = create_engine(DB_URL, echo=True)
 # Create the users and movies tables if they do not exist
 with engine.connect() as connection:
     connection.execute(text("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL
-        )
-    """))
+                            CREATE TABLE IF NOT EXISTS users
+                            (
+                                id
+                                INTEGER
+                                PRIMARY
+                                KEY
+                                AUTOINCREMENT,
+                                name
+                                TEXT
+                                UNIQUE
+                                NOT
+                                NULL
+                            )
+                            """))
     connection.execute(text("""
-        CREATE TABLE IF NOT EXISTS movies (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            year INTEGER NOT NULL,
-            rating REAL NOT NULL,
-            poster_url TEXT,
-            imdb_id TEXT,
-            country TEXT,
-            note TEXT,
-            UNIQUE (user_id, title),
-            FOREIGN KEY (user_id) REFERENCES users (id)
-        )
-    """))
+                            CREATE TABLE IF NOT EXISTS movies
+                            (
+                                id
+                                INTEGER
+                                PRIMARY
+                                KEY
+                                AUTOINCREMENT,
+                                user_id
+                                INTEGER
+                                NOT
+                                NULL,
+                                title
+                                TEXT
+                                NOT
+                                NULL,
+                                year
+                                INTEGER
+                                NOT
+                                NULL,
+                                rating
+                                REAL
+                                NOT
+                                NULL,
+                                poster_url
+                                TEXT,
+                                imdb_id
+                                TEXT,
+                                country
+                                TEXT,
+                                note
+                                TEXT,
+                                UNIQUE
+                            (
+                                user_id,
+                                title
+                            ),
+                                FOREIGN KEY
+                            (
+                                user_id
+                            ) REFERENCES users
+                            (
+                                id
+                            )
+                                )
+                            """))
     connection.commit()
 
 
@@ -44,12 +84,28 @@ def list_users():
 def create_user(name):
     """Creates a new user and returns their id."""
     with engine.connect() as connection:
-        connection.execute(text("INSERT INTO users (name) VALUES (:name)"), {"name": name})
+        connection.execute(
+            text("INSERT INTO users (name) VALUES (:name)"), {"name": name}
+        )
         connection.commit()
         result = connection.execute(
             text("SELECT id FROM users WHERE name = :name"), {"name": name}
         )
         return result.fetchone()[0]
+
+
+def delete_user(user_id):
+    """Deletes a user and all their movies from the database."""
+    with engine.connect() as connection:
+        connection.execute(
+            text("DELETE FROM movies WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        )
+        connection.execute(
+            text("DELETE FROM users WHERE id = :user_id"),
+            {"user_id": user_id},
+        )
+        connection.commit()
 
 
 def list_movies(user_id):
@@ -77,7 +133,9 @@ def list_movies(user_id):
     }
 
 
-def add_movie(user_id, title, year, rating, poster_url=None, imdb_id=None, country=None):
+def add_movie(
+        user_id, title, year, rating, poster_url=None, imdb_id=None, country=None
+):
     """Add a new movie for the given user to the database."""
     with engine.connect() as connection:
         try:
