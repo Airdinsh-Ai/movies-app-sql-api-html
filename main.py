@@ -1,6 +1,8 @@
 import random
 import sys
 
+import matplotlib
+matplotlib.use("Agg")  # Headless backend: only save to file, never open a window
 import matplotlib.pyplot as plt
 
 from storage import movie_storage_sql as storage
