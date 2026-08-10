@@ -18,6 +18,7 @@ body {
     margin: 0;
     margin-top: 20px;
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
 }
 
@@ -28,10 +29,17 @@ body {
 
 .movie {
     width: 140px;
+    cursor: default;
+}
+
+.movie a {
+    text-decoration: none;
+    color: inherit;
 }
 
 .movie-title,
-.movie-year {
+.movie-year,
+.movie-rating {
     font-size: 0.8em;
     text-align: center;
 }
@@ -42,6 +50,10 @@ body {
 
 .movie-year {
     color: #999;
+}
+
+.movie-rating {
+    color: #E4A11B;
 }
 
 

@@ -1,9 +1,15 @@
 import random
+import sys
 
 import matplotlib.pyplot as plt
 
 from storage import movie_storage_sql as storage
+import country_flags
 import omdb_api
+
+# Force UTF-8 console output so emoji in menus/messages don't crash on
+# Windows terminals whose default codepage (e.g. cp1252) can't encode them.
+sys.stdout.reconfigure(encoding="utf-8")
 
 # Custom ANSI styles using the JBlond Gist reference
 STYLE_HEADER = "\033[1;4;93m"  # Bold + Underlined Yellow (Title)
@@ -109,9 +115,48 @@ def get_optional_int_input(prompt_text: str):
             )
 
 
-def print_menu():
+def select_user():
+    """Shows existing users and lets the user pick one, or create a new one."""
+    while True:
+        users = storage.list_users()
+        print(f"\n{STYLE_HEADER}Welcome to the Movie App! 🎬{STYLE_RESET}")
+        print(f"\n{STYLE_MENU}Select a user:{STYLE_RESET}")
+
+        user_ids = list(users.keys())
+        for index, user_id in enumerate(user_ids, start=1):
+            print(
+                f" {STYLE_MENU_NUM}{index}{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} "
+                f"{STYLE_MENU}{users[user_id]}{STYLE_RESET}"
+            )
+        create_choice_number = len(user_ids) + 1
+        print(
+            f" {STYLE_MENU_NUM}{create_choice_number}{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} "
+            f"{STYLE_MENU}Create new user{STYLE_RESET}"
+        )
+
+        choice = colored_input("\nEnter choice: ").strip()
+        try:
+            choice_index = int(choice) - 1
+        except ValueError:
+            print(f"\n{STYLE_ERROR_BG} Error: Please enter a valid number! {STYLE_RESET}")
+            continue
+
+        if choice_index == len(user_ids):
+            new_name = get_nonempty_input("Enter new user name: ")
+            new_user_id = storage.create_user(new_name)
+            return new_user_id, new_name
+
+        if 0 <= choice_index < len(user_ids):
+            selected_id = user_ids[choice_index]
+            return selected_id, users[selected_id]
+
+        print(f"\n{STYLE_ERROR_BG} Error: Invalid choice! {STYLE_RESET}")
+
+
+def print_menu(user_name):
     """Prints the application menu using a bold yellow title and orange choices."""
     print(f"\n{STYLE_HEADER}********** My Movies Database **********{STYLE_RESET}")
+    print(f"\n{STYLE_MENU}Welcome back, {user_name}! 🎬{STYLE_RESET}")
     print(f"\n{STYLE_MENU}Menu Choices:{STYLE_RESET}")
     print(
         f" {STYLE_MENU_NUM}1{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} {STYLE_MENU}List movies{STYLE_RESET}"
@@ -150,30 +195,35 @@ def print_menu():
         f" {STYLE_MENU_NUM}12{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} {STYLE_MENU}Generate website{STYLE_RESET}"
     )
     print(
+        f" {STYLE_MENU_NUM}13{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} {STYLE_MENU}Switch user{STYLE_RESET}"
+    )
+    print(
         f" {STYLE_MENU_NUM}0{STYLE_RESET}{STYLE_DIM}.{STYLE_RESET} {STYLE_MENU}Exit Application{STYLE_RESET}"
     )
 
 
 def main():
     """Main Application Loop."""
+    user_id, user_name = select_user()
+
     while True:
         # Reload from the database on every iteration so the menu always
         # reflects the latest state after an add/delete/update.
-        movies = storage.list_movies()
+        movies = storage.list_movies(user_id)
 
-        print_menu()
+        print_menu(user_name)
         # Custom helper ensures input typed by user is colored Light Blue
-        choice = colored_input("\nEnter choice (0-12): ").strip()
+        choice = colored_input("\nEnter choice (0-13): ").strip()
 
         # Handle choices by calling the appropriate functions
         if choice == "1":
-            list_movies(movies)
+            list_movies(movies, user_name)
         elif choice == "2":
-            add_movies(movies)
+            add_movies(movies, user_id)
         elif choice == "3":
-            delete_movies(movies)
+            delete_movies(movies, user_id)
         elif choice == "4":
-            update_movies(movies)
+            update_movies(movies, user_id)
         elif choice == "5":
             show_stats(movies)
         elif choice == "6":
@@ -189,7 +239,9 @@ def main():
         elif choice == "11":
             filter_movies(movies)
         elif choice == "12":
-            generate_website(movies)
+            generate_website(movies, user_name)
+        elif choice == "13":
+            user_id, user_name = select_user()
         elif choice == "0":
             print(
                 f"\n{STYLE_SUCCESS_BG} Thank you for using My Movies "
@@ -199,21 +251,29 @@ def main():
         else:
             print(
                 f"\n{STYLE_ERROR_BG} Invalid choice! Please enter a "
-                f"number between 0 and 12. {STYLE_RESET}"
+                f"number between 0 and 13. {STYLE_RESET}"
             )
 
 
-def list_movies(movies):
-    """1. List all movies in the database."""
+def list_movies(movies, user_name):
+    """1. List all movies belonging to the active user."""
+    if not movies:
+        print(
+            f"\n{STYLE_ERROR_BG} 📢 {user_name}, your movie collection is "
+            f"empty. Add some movies! {STYLE_RESET}"
+        )
+        return
+
     print(f"\n{STYLE_CYAN}{len(movies)} movies in total:{STYLE_RESET}\n")
     for title, info in movies.items():
+        note_marker = " 📝" if info.get("note") else ""
         print(
             f"  {STYLE_CYAN}{title:<40}{STYLE_RESET} | "
-            f"Year: {info['year']} | Rating: {info['rating']}"
+            f"Year: {info['year']} | Rating: {info['rating']}{note_marker}"
         )
 
 
-def add_movies(movies):
+def add_movies(movies, user_id):
     """2. Add a new movie by fetching its details from the OMDb API."""
     while True:
         new_title = get_nonempty_input("\nEnter new movie title: ")
@@ -231,27 +291,33 @@ def add_movies(movies):
         return
 
     storage.add_movie(
-        new_title, movie_data["year"], movie_data["rating"], movie_data["poster_url"]
+        user_id,
+        new_title,
+        movie_data["year"],
+        movie_data["rating"],
+        movie_data["poster_url"],
+        movie_data["imdb_id"],
+        movie_data["country"],
     )
 
 
-def delete_movies(movies):
-    """3. Delete a movie from the database."""
+def delete_movies(movies, user_id):
+    """3. Delete a movie from the active user's collection."""
     title_to_delete = get_nonempty_input("\nEnter movie title to delete: ")
     if title_to_delete in movies:
-        storage.delete_movie(title_to_delete)
+        storage.delete_movie(user_id, title_to_delete)
     else:
         print(
             f"\n{STYLE_ERROR_BG} Error: '{title_to_delete}' does not exist! {STYLE_RESET}"
         )
 
 
-def update_movies(movies):
-    """4. Update the rating of an existing movie."""
-    title_to_update = get_nonempty_input("\nEnter movie title to update: ")
+def update_movies(movies, user_id):
+    """4. Add or update a personal note for an existing movie."""
+    title_to_update = get_nonempty_input("\nEnter movie name: ")
     if title_to_update in movies:
-        new_rating = get_rating_input(f"Enter new rating for '{title_to_update}': ")
-        storage.update_movie(title_to_update, new_rating)
+        new_note = get_nonempty_input("Enter movie note: ")
+        storage.update_movie(user_id, title_to_update, new_note)
     else:
         print(
             f"\n{STYLE_ERROR_BG} Error: '{title_to_update}' does not exist! {STYLE_RESET}"
@@ -494,30 +560,45 @@ def create_rating_histogram(movies):
 def serialize_movie(title, info):
     """Builds one <li> movie-card entry for the website's movie grid."""
     poster_url = info.get("poster_url") or ""
+    note = info.get("note") or ""
+    flag = country_flags.get_flag(info.get("country"))
+    imdb_id = info.get("imdb_id")
+
+    poster_html = f'<img class="movie-poster" src="{poster_url}" title="{title}"/>'
+    if imdb_id:
+        poster_html = (
+            f'<a href="https://www.imdb.com/title/{imdb_id}/" target="_blank">'
+            f"{poster_html}</a>"
+        )
+
     return (
-        '<li>\n'
-        '    <div class="movie">\n'
-        f'        <img class="movie-poster" src="{poster_url}" title="{title}"/>\n'
-        f'        <div class="movie-title">{title}</div>\n'
+        "<li>\n"
+        f'    <div class="movie" title="{note}">\n'
+        f"        {poster_html}\n"
+        f'        <div class="movie-title">{flag} {title}</div>\n'
         f'        <div class="movie-year">{info["year"]}</div>\n'
-        '    </div>\n'
-        '</li>\n'
+        f'        <div class="movie-rating">⭐ {info["rating"]}</div>\n'
+        "    </div>\n"
+        "</li>\n"
     )
 
 
-def generate_website(movies):
-    """12. Generate index.html from the template, listing all movies."""
-    with open("index_template.html", "r") as file:
+def generate_website(movies, user_name):
+    """12. Generate a website from the template, listing the active user's movies."""
+    with open("index_template.html", "r", encoding="utf-8") as file:
         html_template = file.read()
 
     movie_grid = ""
     for title, info in movies.items():
         movie_grid += serialize_movie(title, info)
 
-    html_output = html_template.replace("__TEMPLATE_TITLE__", "My Movie App")
+    html_output = html_template.replace(
+        "__TEMPLATE_TITLE__", f"{user_name}'s Movie App"
+    )
     html_output = html_output.replace("__TEMPLATE_MOVIE_GRID__", movie_grid)
 
-    with open("index.html", "w") as file:
+    filename = f"{user_name}.html"
+    with open(filename, "w", encoding="utf-8") as file:
         file.write(html_output)
 
     print(f"\n{STYLE_SUCCESS_BG} Website was generated successfully. {STYLE_RESET}")

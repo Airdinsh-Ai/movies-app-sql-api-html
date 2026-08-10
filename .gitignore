@@ -3,3 +3,6 @@ __pycache__/
 Anleitung/
 .env
 data/movies.db
+*.html
+!index_template.html
+*.png
