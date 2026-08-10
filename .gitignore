@@ -2,4 +2,4 @@
 __pycache__/
 Anleitung/
 .env
-movies.db
+data/movies.db

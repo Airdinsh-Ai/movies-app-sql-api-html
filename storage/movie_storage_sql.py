@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, text
 
-# define teh database URL
-DB_URL = "sqlite:///movies.db"
+# define the database URL
+DB_URL = "sqlite:///data/movies.db"
 
 # create the engine
 engine = create_engine(DB_URL, echo=True)
